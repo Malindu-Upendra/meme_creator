@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "241933144493",
+    "project_id": "meme-creator-a0520",
+    "storage_bucket": "meme-creator-a0520.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:241933144493:android:d9cd216d5f076902bf5124",
+        "android_client_info": {
+          "package_name": "com.example.meme_creator"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCzaTe5LCXH_MtaXrpGb-wqG9zqrhEr1Z0"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
