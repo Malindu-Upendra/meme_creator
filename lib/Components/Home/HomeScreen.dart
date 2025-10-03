@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:dio/dio.dart';
-import 'package:image_gallery_saver/image_gallery_saver.dart';
+import 'package:media_store_plus/media_store_plus.dart';
+import 'package:meme_creator/Components/MemeCreator/MemeCreatorScreen.dart';
 import '../Login/LoginScreen.dart';
+import 'package:dio/dio.dart';
+import 'package:path_provider/path_provider.dart';
+import 'dart:io';
 
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
@@ -16,18 +19,28 @@ class HomeScreen extends StatelessWidget {
 
   Future<void> _saveImage(String url) async {
     try {
-      var response = await Dio().get(
-        url,
-        options: Options(responseType: ResponseType.bytes),
-      );
-      final result = await ImageGallerySaver.saveImage(
-        response.data,
-        quality: 80,
-        name: "meme_${DateTime.now().millisecondsSinceEpoch}",
-      );
-      debugPrint("Image saved to gallery: $result");
+      // 1. Download image to a temporary file
+      final tempDir = await getTemporaryDirectory();
+      final tempPath =
+          '${tempDir.path}/meme_${DateTime.now().millisecondsSinceEpoch}.jpg';
+
+      final response = await Dio().download(url, tempPath);
+
+      if (response.statusCode == 200) {
+        // 2. Save file to MediaStore (Gallery)
+        final mediaStore = MediaStore();
+        final result = await mediaStore.saveFile(
+          relativePath: '', // or specify a subfolder like 'Memes'
+          dirName: DirName.download,
+          tempFilePath: tempPath,
+          dirType: DirType.download,
+        );
+        debugPrint("✅ Image saved: $result");
+      } else {
+        debugPrint("❌ Failed to download image");
+      }
     } catch (e) {
-      debugPrint("Error saving image: $e");
+      debugPrint("❌ Error saving image: $e");
     }
   }
 
@@ -50,7 +63,7 @@ class HomeScreen extends StatelessWidget {
                 );
               }
             },
-          )
+          ),
         ],
       ),
       body: StreamBuilder<QuerySnapshot>(
@@ -104,7 +117,9 @@ class HomeScreen extends StatelessWidget {
                           );
                         },
                         errorBuilder: (context, error, stackTrace) {
-                          return const Center(child: Text("Image failed to load"));
+                          return const Center(
+                            child: Text("Image failed to load"),
+                          );
                         },
                       ),
                     ),
@@ -119,7 +134,10 @@ class HomeScreen extends StatelessWidget {
                           Row(
                             children: [
                               IconButton(
-                                icon: const Icon(Icons.favorite_border, color: Colors.red),
+                                icon: const Icon(
+                                  Icons.favorite_border,
+                                  color: Colors.red,
+                                ),
                                 onPressed: () => _likePost(postId, likes),
                               ),
                               Text("$likes likes"),
@@ -128,18 +146,32 @@ class HomeScreen extends StatelessWidget {
 
                           // Save button
                           IconButton(
-                            icon: const Icon(Icons.download, color: Colors.blue),
+                            icon: const Icon(
+                              Icons.download,
+                              color: Colors.blue,
+                            ),
                             onPressed: () => _saveImage(imageUrl),
                           ),
                         ],
                       ),
-                    )
+                    ),
                   ],
                 ),
               );
             },
           );
         },
+      ),
+      // inside Scaffold of HomeScreen
+      floatingActionButton: FloatingActionButton(
+        onPressed: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (context) => const MemeCreatorScreen()),
+          );
+        },
+        backgroundColor: Colors.blue,
+        child: const Icon(Icons.add_a_photo),
       ),
     );
   }
