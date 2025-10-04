@@ -82,92 +82,104 @@ class HomeScreen extends StatelessWidget {
             return const Center(child: Text("No memes uploaded yet!"));
           }
 
-          return ListView.builder(
-            itemCount: posts.length,
-            itemBuilder: (context, index) {
-              final post = posts[index];
-              final postId = post.id;
-              final data = post.data() as Map<String, dynamic>;
-              final imageUrl = data['imageUrl'];
-              final likes = data['likes'] ?? 0;
-
-              return Card(
-                margin: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
-                elevation: 3,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Image
-                    ClipRRect(
-                      borderRadius: const BorderRadius.vertical(
-                        top: Radius.circular(12),
-                      ),
-                      child: Image.network(
-                        imageUrl,
-                        fit: BoxFit.cover,
-                        width: double.infinity,
-                        height: 250,
-                        loadingBuilder: (context, child, loadingProgress) {
-                          if (loadingProgress == null) return child;
-                          return const Center(
-                            child: CircularProgressIndicator(),
-                          );
-                        },
-                        errorBuilder: (context, error, stackTrace) {
-                          return const Center(
-                            child: Text("Image failed to load"),
-                          );
-                        },
-                      ),
-                    ),
-
-                    // Action buttons
-                    Padding(
-                      padding: const EdgeInsets.all(12.0),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          // Like button
-                          Row(
-                            children: [
-                              IconButton(
-                                icon: const Icon(
-                                  Icons.favorite_border,
-                                  color: Colors.red,
-                                ),
-                                onPressed: () => _likePost(postId, likes),
-                              ),
-                              Text("$likes likes"),
-                            ],
-                          ),
-
-                          // Save button
-                          IconButton(
-                            icon: const Icon(
-                              Icons.download,
-                              color: Colors.blue,
-                            ),
-                            onPressed: () => _saveImage(imageUrl),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              );
+          return RefreshIndicator(
+            color: Colors.blue,
+            onRefresh: () async {
+              // Manually trigger refresh (Firestore streams auto-update,
+              // but we mimic refresh for better UX)
+              await Future.delayed(const Duration(seconds: 1));
             },
+            child: ListView.builder(
+              physics: const AlwaysScrollableScrollPhysics(),
+              itemCount: posts.length,
+              itemBuilder: (context, index) {
+                final post = posts[index];
+                final postId = post.id;
+                final data = post.data() as Map<String, dynamic>;
+                final imageUrl = data['imageUrl'];
+                final likes = data['likes'] ?? 0;
+
+                return Card(
+                  margin: const EdgeInsets.symmetric(
+                    vertical: 10,
+                    horizontal: 8,
+                  ),
+                  elevation: 3,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Image
+                      ClipRRect(
+                        borderRadius: const BorderRadius.vertical(
+                          top: Radius.circular(12),
+                        ),
+                        child: Image.network(
+                          imageUrl,
+                          fit: BoxFit.cover,
+                          width: double.infinity,
+                          height: 250,
+                          loadingBuilder: (context, child, loadingProgress) {
+                            if (loadingProgress == null) return child;
+                            return const Center(
+                              child: CircularProgressIndicator(),
+                            );
+                          },
+                          errorBuilder: (context, error, stackTrace) {
+                            return const Center(
+                              child: Text("Image failed to load"),
+                            );
+                          },
+                        ),
+                      ),
+
+                      // Action buttons
+                      Padding(
+                        padding: const EdgeInsets.all(12.0),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            // Like button
+                            Row(
+                              children: [
+                                IconButton(
+                                  icon: const Icon(
+                                    Icons.favorite_border,
+                                    color: Colors.red,
+                                  ),
+                                  onPressed: () => _likePost(postId, likes),
+                                ),
+                                Text("$likes likes"),
+                              ],
+                            ),
+
+                            // Save button
+                            IconButton(
+                              icon: const Icon(
+                                Icons.download,
+                                color: Colors.blue,
+                              ),
+                              onPressed: () => _saveImage(imageUrl),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              },
+            ),
           );
         },
       ),
-      // inside Scaffold of HomeScreen
+
       floatingActionButton: FloatingActionButton(
         onPressed: () {
           Navigator.push(
             context,
-            MaterialPageRoute(builder: (context) => const MemeCreatorScreen()),
+            MaterialPageRoute(builder: (context) => MemeEditorScreen()),
           );
         },
         backgroundColor: Colors.blue,
