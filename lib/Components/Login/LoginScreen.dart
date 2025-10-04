@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:meme_creator/Components/Home/HomeScreen.dart';
 import 'package:meme_creator/Components/Register/RegisterScreen.dart';
 
 class LoginPage extends StatefulWidget {
@@ -28,7 +29,10 @@ class _LoginPageState extends State<LoginPage> {
 
       // Navigate to home after successful login
       if (mounted) {
-        Navigator.pushReplacementNamed(context, '/home');
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (context) => const HomeScreen()),
+        );
       }
     } on FirebaseAuthException catch (e) {
       String errorMessage = 'Login failed';

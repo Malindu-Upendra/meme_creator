@@ -1,6 +1,8 @@
 import 'dart:io';
 import 'dart:typed_data';
+import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter/material.dart';
+import 'package:hive/hive.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:screenshot/screenshot.dart';
 import 'package:flutter_colorpicker/flutter_colorpicker.dart';
@@ -252,11 +254,31 @@ class _MemeEditorScreenState extends State<MemeEditorScreen> {
     });
   }
 
+  Future<bool> _hasInternetConnection() async {
+    final connectivity = await Connectivity().checkConnectivity();
+    if (connectivity == ConnectivityResult.none) return false;
+
+    // Extra verification for real connectivity
+    try {
+      final result = await Dio().get(
+        'https://www.google.com',
+        options: Options(
+          receiveTimeout: const Duration(seconds: 3),
+          sendTimeout: const Duration(seconds: 3),
+        ),
+      );
+      return result.statusCode == 200;
+    } catch (_) {
+      return false;
+    }
+  }
+
   Future<void> _uploadMeme() async {
     setState(() => _isUploading = true);
     _showUploadingDialog();
 
     try {
+      // Capture current meme as image bytes
       Uint8List? captured = await _screenshotController.captureFromWidget(
         RepaintBoundary(key: GlobalKey(), child: _buildEditorForCapture()),
         delay: const Duration(milliseconds: 100),
@@ -267,35 +289,64 @@ class _MemeEditorScreenState extends State<MemeEditorScreen> {
           '${dir.path}/meme_${DateTime.now().millisecondsSinceEpoch}.png';
       final file = File(filePath)..writeAsBytesSync(captured);
 
-      final uploadUrl =
-          "https://api.cloudinary.com/v1_1/$cloudName/image/upload";
-      final formData = FormData.fromMap({
-        "file": await MultipartFile.fromFile(file.path),
-        "upload_preset": uploadPreset,
-      });
-
-      final response = await Dio().post(uploadUrl, data: formData);
-
-      if (response.statusCode == 200) {
-        final imageUrl = response.data["secure_url"];
-        final user = FirebaseAuth.instance.currentUser;
-
-        await FirebaseFirestore.instance.collection("posts").add({
-          "imageUrl": imageUrl,
-          "likes": 0,
-          "timestamp": FieldValue.serverTimestamp(),
-          "user": user?.email ?? "anonymous",
+      if (await _hasInternetConnection()) {
+        // ✅ Upload to Cloudinary if connected
+        final uploadUrl =
+            "https://api.cloudinary.com/v1_1/$cloudName/image/upload";
+        final formData = FormData.fromMap({
+          "file": await MultipartFile.fromFile(file.path),
+          "upload_preset": uploadPreset,
         });
 
-        if (mounted) {
-          _hideUploadingDialog();
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text("✅ Meme uploaded successfully!")),
-          );
-          Navigator.pop(context);
+        final response = await Dio().post(uploadUrl, data: formData);
+
+        if (response.statusCode == 200) {
+          final imageUrl = response.data["secure_url"];
+          final user = FirebaseAuth.instance.currentUser;
+
+          await FirebaseFirestore.instance.collection("posts").add({
+            "imageUrl": imageUrl,
+            "likes": 0,
+            "timestamp": FieldValue.serverTimestamp(),
+            "user": user?.email ?? "anonymous",
+          });
+
+          if (mounted) {
+            _hideUploadingDialog();
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text("✅ Meme uploaded successfully!")),
+            );
+            Navigator.pop(context);
+          }
+        } else {
+          throw Exception("Upload failed: ${response.statusMessage}");
         }
       } else {
-        throw Exception("Upload failed: ${response.statusMessage}");
+        // 🚫 No internet — save locally as draft
+        final appDir = await getApplicationDocumentsDirectory();
+        final localPath =
+            '${appDir.path}/offline_meme_${DateTime.now().millisecondsSinceEpoch}.png';
+        await file.copy(localPath);
+
+        // Save draft in Hive local box
+        final box = await Hive.openBox('outbox');
+        await box.add({
+          'localPath': localPath,
+          'text': texts.isNotEmpty ? texts.map((t) => t.text).join(' ') : '',
+          'timestamp': DateTime.now().millisecondsSinceEpoch,
+          'uploaded': false,
+          'isDraft': true,
+        });
+
+        _hideUploadingDialog();
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              "📦 Saved offline as draft — will upload when online",
+            ),
+          ),
+        );
+        Navigator.pop(context);
       }
     } catch (e) {
       debugPrint("Upload error: $e");
@@ -483,22 +534,25 @@ class _MemeEditorScreenState extends State<MemeEditorScreen> {
                     label: const Text("Color"),
                   ),
                   ElevatedButton.icon(
-                    onPressed: () => _isUploading ? null : setState(() => _isDrawing = !_isDrawing),
+                    onPressed: () => _isUploading
+                        ? null
+                        : setState(() => _isDrawing = !_isDrawing),
                     icon: const Icon(Icons.brush),
                     label: Text(_isDrawing ? "Stop Draw" : "Draw"),
                   ),
                   ElevatedButton.icon(
                     onPressed: () {
-                      _isUploading ? null :
-                      showModalBottomSheet(
-                        context: context,
-                        builder: (_) => EmojiPicker(
-                          onEmojiSelected: (cat, emoji) {
-                            Navigator.pop(context);
-                            _addEmoji(emoji.emoji);
-                          },
-                        ),
-                      );
+                      _isUploading
+                          ? null
+                          : showModalBottomSheet(
+                              context: context,
+                              builder: (_) => EmojiPicker(
+                                onEmojiSelected: (cat, emoji) {
+                                  Navigator.pop(context);
+                                  _addEmoji(emoji.emoji);
+                                },
+                              ),
+                            );
                     },
                     icon: const Icon(Icons.emoji_emotions),
                     label: const Text("Emoji"),
@@ -517,12 +571,14 @@ class _MemeEditorScreenState extends State<MemeEditorScreen> {
             mainAxisAlignment: MainAxisAlignment.spaceEvenly,
             children: [
               ElevatedButton.icon(
-                onPressed: () => _isUploading ? null : _pickImage(ImageSource.camera),
+                onPressed: () =>
+                    _isUploading ? null : _pickImage(ImageSource.camera),
                 icon: const Icon(Icons.camera_alt),
                 label: const Text("Camera"),
               ),
               ElevatedButton.icon(
-                onPressed: () => _isUploading ? null : _pickImage(ImageSource.gallery),
+                onPressed: () =>
+                    _isUploading ? null : _pickImage(ImageSource.gallery),
                 icon: const Icon(Icons.photo_library),
                 label: const Text("Gallery"),
               ),
