@@ -50,6 +50,7 @@ dependencies:
   emoji_picker_flutter: ^4.3.0
   google_fonts: ^6.3.2
   connectivity_plus: ^7.0.0
+  image_cropper: ^11.0.0
   
 dev_dependencies:
   flutter_test:

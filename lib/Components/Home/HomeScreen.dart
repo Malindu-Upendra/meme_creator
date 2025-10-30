@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:media_store_plus/media_store_plus.dart';
+import 'package:meme_creator/Components/Home/MemeDetailScreen.dart';
 import 'package:meme_creator/Components/MemeCreator/MemeCreatorScreen.dart';
 import '../Login/LoginScreen.dart';
 import 'package:dio/dio.dart';
@@ -15,7 +16,8 @@ class HomeScreen extends StatefulWidget {
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateMixin {
+class _HomeScreenState extends State<HomeScreen>
+    with SingleTickerProviderStateMixin {
   bool _loadingLocal = true;
   List<Map> _localDrafts = [];
   late AnimationController _fabController;
@@ -81,7 +83,9 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
             ),
             backgroundColor: Colors.green.shade600,
             behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
             margin: const EdgeInsets.all(16),
           ),
         );
@@ -97,7 +101,9 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
             ),
             backgroundColor: Colors.red.shade600,
             behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
             margin: const EdgeInsets.all(16),
           ),
         );
@@ -114,7 +120,9 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
           ),
           backgroundColor: Colors.red.shade600,
           behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
           margin: const EdgeInsets.all(16),
         ),
       );
@@ -123,12 +131,14 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
 
   Future<void> _deletePost(Map post) async {
     final isLocal = post['isLocal'] == true;
+    final currentUserEmail = FirebaseAuth.instance.currentUser?.email;
 
     if (isLocal) {
       final box = await Hive.openBox('outbox');
       final drafts = box.values.toList();
       final index = drafts.indexWhere(
-          (d) => d['localPath'] == post['imagePath'] && d['uploaded'] == false);
+        (d) => d['localPath'] == post['imagePath'] && d['uploaded'] == false,
+      );
       if (index != -1) {
         await box.deleteAt(index);
       }
@@ -146,32 +156,60 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
           ),
           backgroundColor: Colors.orange.shade600,
           behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
           margin: const EdgeInsets.all(16),
         ),
       );
       await _loadLocalDrafts();
       setState(() {});
     } else {
-      await FirebaseFirestore.instance
-          .collection('posts')
-          .doc(post['postId'])
-          .delete();
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: const Row(
-            children: [
-              Icon(Icons.delete_outline, color: Colors.white),
-              SizedBox(width: 12),
-              Text("Post deleted"),
-            ],
+      final postAuthorEmail = post['userEmail'];
+
+      if (currentUserEmail != null && currentUserEmail == postAuthorEmail) {
+        await FirebaseFirestore.instance
+            .collection('posts')
+            .doc(post['postId'])
+            .delete();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Row(
+              children: [
+                Icon(Icons.delete_outline, color: Colors.white),
+                SizedBox(width: 12),
+                Text("Post deleted"),
+              ],
+            ),
+            backgroundColor: Colors.green.shade600,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+            margin: const EdgeInsets.all(16),
           ),
-          backgroundColor: Colors.orange.shade600,
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-          margin: const EdgeInsets.all(16),
-        ),
-      );
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                const Icon(Icons.error_outline, color: Colors.white),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text('User Does Not Have Permission to Delete'),
+                ),
+              ],
+            ),
+            backgroundColor: Colors.red.shade600,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+            margin: const EdgeInsets.all(16),
+          ),
+        );
+      }
     }
   }
 
@@ -183,6 +221,8 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
 
   @override
   Widget build(BuildContext context) {
+    final currentUserEmail = FirebaseAuth.instance.currentUser?.email;
+
     return Scaffold(
       extendBodyBehindAppBar: true,
       appBar: AppBar(
@@ -250,10 +290,7 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
           gradient: LinearGradient(
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
-            colors: [
-              const Color(0xFF6366F1).withOpacity(0.1),
-              Colors.white,
-            ],
+            colors: [const Color(0xFF6366F1).withOpacity(0.1), Colors.white],
           ),
         ),
         child: _loadingLocal
@@ -269,16 +306,19 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                     .orderBy('timestamp', descending: true)
                     .snapshots(),
                 builder: (context, snapshot) {
-                  final firebasePosts =
-                      snapshot.hasData ? snapshot.data!.docs : [];
+                  final firebasePosts = snapshot.hasData
+                      ? snapshot.data!.docs
+                      : [];
 
                   final combined = [
-                    ..._localDrafts.map((d) => {
-                          'isLocal': true,
-                          'imagePath': d['localPath'],
-                          'text': d['text'] ?? '',
-                          'timestamp': d['timestamp'],
-                        }),
+                    ..._localDrafts.map(
+                      (d) => {
+                        'isLocal': true,
+                        'imagePath': d['localPath'],
+                        'text': d['text'] ?? '',
+                        'timestamp': d['timestamp'],
+                      },
+                    ),
                     ...firebasePosts.map((doc) {
                       final data = doc.data() as Map<String, dynamic>;
                       return {
@@ -287,15 +327,19 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                         'imageUrl': data['imageUrl'],
                         'text': data['text'] ?? '',
                         'likes': data['likes'] ?? 0,
+                        'userEmail': data['user'] ?? 'anonymous',
                         'timestamp':
-                            (data['timestamp'] as Timestamp?)?.millisecondsSinceEpoch ??
-                                0,
+                            (data['timestamp'] as Timestamp?)
+                                ?.millisecondsSinceEpoch ??
+                            0,
                       };
                     }),
                   ];
 
-                  combined.sort((a, b) =>
-                      (b['timestamp'] ?? 0).compareTo(a['timestamp'] ?? 0));
+                  combined.sort(
+                    (a, b) =>
+                        (b['timestamp'] ?? 0).compareTo(a['timestamp'] ?? 0),
+                  );
 
                   if (combined.isEmpty) {
                     return Center(
@@ -340,17 +384,25 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                         final post = combined[index];
                         final isLocal = post['isLocal'] == true;
 
+                        final bool isAuthor =
+                            isLocal ||
+                            (post['userEmail'] != null &&
+                                post['userEmail'] == currentUserEmail);
+
+                        final String heroTag = isLocal
+                            ? post['imagePath']
+                            : post['postId'];
+
                         return Container(
                           margin: const EdgeInsets.symmetric(
-                              vertical: 12, horizontal: 16),
+                            vertical: 12,
+                            horizontal: 16,
+                          ),
                           decoration: BoxDecoration(
                             gradient: LinearGradient(
                               begin: Alignment.topLeft,
                               end: Alignment.bottomRight,
-                              colors: [
-                                Colors.white,
-                                Colors.grey.shade50,
-                              ],
+                              colors: [Colors.white, Colors.grey.shade50],
                             ),
                             borderRadius: BorderRadius.circular(20),
                             boxShadow: [
@@ -366,50 +418,91 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                             children: [
                               Stack(
                                 children: [
-                                  ClipRRect(
-                                    borderRadius: const BorderRadius.vertical(
-                                      top: Radius.circular(20),
-                                    ),
-                                    child: isLocal
-                                        ? Image.file(
-                                            File(post['imagePath']),
-                                            fit: BoxFit.cover,
-                                            width: double.infinity,
-                                            height: 300,
-                                          )
-                                        : Image.network(
-                                            post['imageUrl'],
-                                            fit: BoxFit.cover,
-                                            width: double.infinity,
-                                            height: 300,
-                                            loadingBuilder: (context, child,
-                                                loadingProgress) {
-                                              if (loadingProgress == null)
-                                                return child;
-                                              return Container(
-                                                height: 300,
-                                                color: Colors.grey.shade200,
-                                                child: const Center(
-                                                  child: CircularProgressIndicator(
-                                                    color: Color(0xFF6366F1),
-                                                  ),
+                                  Hero(
+                                    tag: heroTag,
+                                    child: GestureDetector(
+                                      onTap: () {
+                                        // 3. Navigate to the new detail screen
+                                        Navigator.push(
+                                          context,
+                                          MaterialPageRoute(
+                                            builder: (context) =>
+                                                MemeDetailScreen(
+                                                  heroTag: heroTag,
+                                                  localPath: isLocal
+                                                      ? post['imagePath']
+                                                      : null,
+                                                  imageUrl: isLocal
+                                                      ? null
+                                                      : post['imageUrl'],
                                                 ),
-                                              );
-                                            },
-                                            errorBuilder:
-                                                (context, error, stackTrace) =>
-                                                    Container(
-                                              height: 300,
-                                              color: Colors.grey.shade300,
-                                              child: const Center(
-                                                child: Icon(
-                                                  Icons.broken_image_outlined,
-                                                  size: 60,
-                                                  color: Colors.grey,
-                                                ),
-                                              ),
-                                            ),
+                                            // Use a faded transition for a cleaner look
+                                            fullscreenDialog: true,
                                           ),
+                                        );
+                                      },
+                                      child: ClipRRect(
+                                        borderRadius:
+                                            const BorderRadius.vertical(
+                                              top: Radius.circular(20),
+                                            ),
+                                        child: isLocal
+                                            ? Image.file(
+                                                File(post['imagePath']),
+                                                fit: BoxFit.cover,
+                                                width: double.infinity,
+                                                height: 300,
+                                              )
+                                            : Image.network(
+                                                post['imageUrl'],
+                                                fit: BoxFit.cover,
+                                                width: double.infinity,
+                                                height: 300,
+                                                loadingBuilder:
+                                                    (
+                                                      context,
+                                                      child,
+                                                      loadingProgress,
+                                                    ) {
+                                                      if (loadingProgress ==
+                                                          null)
+                                                        return child;
+                                                      return Container(
+                                                        height: 300,
+                                                        color: Colors
+                                                            .grey
+                                                            .shade200,
+                                                        child: const Center(
+                                                          child:
+                                                              CircularProgressIndicator(
+                                                                color: Color(
+                                                                  0xFF6366F1,
+                                                                ),
+                                                              ),
+                                                        ),
+                                                      );
+                                                    },
+                                                errorBuilder:
+                                                    (
+                                                      context,
+                                                      error,
+                                                      stackTrace,
+                                                    ) => Container(
+                                                      height: 300,
+                                                      color:
+                                                          Colors.grey.shade300,
+                                                      child: const Center(
+                                                        child: Icon(
+                                                          Icons
+                                                              .broken_image_outlined,
+                                                          size: 60,
+                                                          color: Colors.grey,
+                                                        ),
+                                                      ),
+                                                    ),
+                                              ),
+                                      ),
+                                    ),
                                   ),
 
                                   if (isLocal)
@@ -418,7 +511,9 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                                       left: 16,
                                       child: Container(
                                         padding: const EdgeInsets.symmetric(
-                                            horizontal: 12, vertical: 6),
+                                          horizontal: 12,
+                                          vertical: 6,
+                                        ),
                                         decoration: BoxDecoration(
                                           gradient: LinearGradient(
                                             colors: [
@@ -426,10 +521,14 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                                               Colors.orange.shade600,
                                             ],
                                           ),
-                                          borderRadius: BorderRadius.circular(20),
+                                          borderRadius: BorderRadius.circular(
+                                            20,
+                                          ),
                                           boxShadow: [
                                             BoxShadow(
-                                              color: Colors.orange.withOpacity(0.5),
+                                              color: Colors.orange.withOpacity(
+                                                0.5,
+                                              ),
                                               blurRadius: 8,
                                               offset: const Offset(0, 2),
                                             ),
@@ -438,8 +537,11 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                                         child: const Row(
                                           mainAxisSize: MainAxisSize.min,
                                           children: [
-                                            Icon(Icons.save_outlined,
-                                                color: Colors.white, size: 16),
+                                            Icon(
+                                              Icons.save_outlined,
+                                              color: Colors.white,
+                                              size: 16,
+                                            ),
                                             SizedBox(width: 4),
                                             Text(
                                               "DRAFT",
@@ -464,8 +566,11 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                                         shape: BoxShape.circle,
                                       ),
                                       child: IconButton(
-                                        icon: const Icon(Icons.delete_rounded,
-                                            color: Colors.white, size: 22),
+                                        icon: const Icon(
+                                          Icons.delete_rounded,
+                                          color: Colors.white,
+                                          size: 22,
+                                        ),
                                         onPressed: () => _deletePost(post),
                                       ),
                                     ),
@@ -490,7 +595,9 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                               if (!isLocal)
                                 Container(
                                   padding: const EdgeInsets.symmetric(
-                                      horizontal: 12, vertical: 8),
+                                    horizontal: 12,
+                                    vertical: 8,
+                                  ),
                                   decoration: BoxDecoration(
                                     color: Colors.grey.shade50,
                                     borderRadius: const BorderRadius.vertical(
@@ -504,12 +611,18 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                                       Material(
                                         color: Colors.transparent,
                                         child: InkWell(
-                                          borderRadius: BorderRadius.circular(12),
+                                          borderRadius: BorderRadius.circular(
+                                            12,
+                                          ),
                                           onTap: () => _likePost(
-                                              post['postId'], post['likes'] ?? 0),
+                                            post['postId'],
+                                            post['likes'] ?? 0,
+                                          ),
                                           child: Padding(
                                             padding: const EdgeInsets.symmetric(
-                                                horizontal: 12, vertical: 8),
+                                              horizontal: 12,
+                                              vertical: 8,
+                                            ),
                                             child: Row(
                                               children: [
                                                 const Icon(
@@ -534,11 +647,16 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                                       Material(
                                         color: Colors.transparent,
                                         child: InkWell(
-                                          borderRadius: BorderRadius.circular(12),
-                                          onTap: () => _saveImage(post['imageUrl']),
+                                          borderRadius: BorderRadius.circular(
+                                            12,
+                                          ),
+                                          onTap: () =>
+                                              _saveImage(post['imageUrl']),
                                           child: Container(
                                             padding: const EdgeInsets.symmetric(
-                                                horizontal: 16, vertical: 8),
+                                              horizontal: 16,
+                                              vertical: 8,
+                                            ),
                                             decoration: BoxDecoration(
                                               gradient: const LinearGradient(
                                                 colors: [
@@ -551,8 +669,11 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                                             ),
                                             child: const Row(
                                               children: [
-                                                Icon(Icons.download_rounded,
-                                                    color: Colors.white, size: 20),
+                                                Icon(
+                                                  Icons.download_rounded,
+                                                  color: Colors.white,
+                                                  size: 20,
+                                                ),
                                                 SizedBox(width: 6),
                                                 Text(
                                                   "Save",
@@ -587,10 +708,7 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
         child: Container(
           decoration: BoxDecoration(
             gradient: const LinearGradient(
-              colors: [
-                Color(0xFFEC4899),
-                Color(0xFFF59E0B),
-              ],
+              colors: [Color(0xFFEC4899), Color(0xFFF59E0B)],
             ),
             borderRadius: BorderRadius.circular(20),
             boxShadow: [
@@ -606,7 +724,8 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
               Navigator.push(
                 context,
                 MaterialPageRoute(
-                    builder: (context) => const MemeEditorScreen()),
+                  builder: (context) => const MemeEditorScreen(),
+                ),
               );
             },
             backgroundColor: Colors.transparent,

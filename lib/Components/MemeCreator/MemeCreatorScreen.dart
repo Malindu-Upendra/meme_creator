@@ -12,6 +12,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:dio/dio.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:image_cropper/image_cropper.dart';
 
 class MemeEditorScreen extends StatefulWidget {
   const MemeEditorScreen({super.key});
@@ -19,7 +20,8 @@ class MemeEditorScreen extends StatefulWidget {
   State<MemeEditorScreen> createState() => _MemeEditorScreenState();
 }
 
-class _MemeEditorScreenState extends State<MemeEditorScreen> with TickerProviderStateMixin {
+class _MemeEditorScreenState extends State<MemeEditorScreen>
+    with TickerProviderStateMixin {
   File? _baseImage;
   final _picker = ImagePicker();
   final ScreenshotController _screenshotController = ScreenshotController();
@@ -41,7 +43,7 @@ class _MemeEditorScreenState extends State<MemeEditorScreen> with TickerProvider
   bool _gestureIsTextItem = true;
 
   bool _isUploading = false;
-  
+
   late AnimationController _toolbarController;
 
   final String cloudName = "dxcqu9b5s";
@@ -65,9 +67,80 @@ class _MemeEditorScreenState extends State<MemeEditorScreen> with TickerProvider
 
   Future<void> _pickImage(ImageSource source) async {
     final picked = await _picker.pickImage(source: source, imageQuality: 90);
+
     if (picked != null) {
+      final croppedImage = await _cropImage(File(picked.path));
+
+      if (croppedImage != null) {
+        setState(() {
+          _baseImage = croppedImage;
+          texts.clear();
+          emojis.clear();
+          drawingPoints.clear();
+        });
+      }
+    }
+  }
+
+  Future<File?> _cropImage(File imageFile) async {
+    final androidColor = const Color(0xFFF59E0B);
+
+    CroppedFile? croppedFile = await ImageCropper().cropImage(
+      sourcePath: imageFile.path,
+      uiSettings: [
+        AndroidUiSettings(
+          toolbarTitle: 'Crop Your Meme',
+          toolbarColor: androidColor,
+          toolbarWidgetColor: Colors.white,
+          initAspectRatio: CropAspectRatioPreset.original,
+          lockAspectRatio: false,
+          aspectRatioPresets: [
+            CropAspectRatioPreset.original,
+            CropAspectRatioPreset.square,
+            CropAspectRatioPreset.ratio3x2,
+            CropAspectRatioPreset.ratio4x3,
+            CropAspectRatioPreset.ratio16x9,
+          ],
+        ),
+        IOSUiSettings(
+          title: 'Crop Your Meme',
+          doneButtonTitle: 'Done',
+          cancelButtonTitle: 'Cancel',
+          minimumAspectRatio: 1.0,
+          aspectRatioPresets: [
+            CropAspectRatioPreset.original,
+            CropAspectRatioPreset.square,
+            CropAspectRatioPreset.ratio3x2,
+            CropAspectRatioPreset.ratio4x3,
+            CropAspectRatioPreset.ratio16x9,
+          ],
+        ),
+      ],
+    );
+
+    if (croppedFile != null) {
+      return File(croppedFile.path);
+    }
+    return null;
+  }
+
+  Future<void> _triggerCrop() async {
+    if (_baseImage == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Please select an image first.")),
+      );
+      return;
+    }
+
+    final croppedImage = await _cropImage(_baseImage!);
+
+    if (croppedImage != null) {
       setState(() {
-        _baseImage = File(picked.path);
+        _baseImage = croppedImage;
+
+        texts.clear();
+        emojis.clear();
+        drawingPoints.clear();
       });
     }
   }
@@ -177,7 +250,10 @@ class _MemeEditorScreenState extends State<MemeEditorScreen> with TickerProvider
       context: context,
       builder: (context) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: const Text("Edit Text", style: TextStyle(fontWeight: FontWeight.bold)),
+        title: const Text(
+          "Edit Text",
+          style: TextStyle(fontWeight: FontWeight.bold),
+        ),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -232,7 +308,10 @@ class _MemeEditorScreenState extends State<MemeEditorScreen> with TickerProvider
                   children: [
                     const Icon(Icons.palette, color: Color(0xFF6366F1)),
                     const SizedBox(width: 12),
-                    const Text("Change Color", style: TextStyle(fontWeight: FontWeight.w500)),
+                    const Text(
+                      "Change Color",
+                      style: TextStyle(fontWeight: FontWeight.w500),
+                    ),
                     const Spacer(),
                     Container(
                       width: 30,
@@ -240,7 +319,10 @@ class _MemeEditorScreenState extends State<MemeEditorScreen> with TickerProvider
                       decoration: BoxDecoration(
                         color: textInfo.color,
                         shape: BoxShape.circle,
-                        border: Border.all(color: Colors.grey.shade300, width: 2),
+                        border: Border.all(
+                          color: Colors.grey.shade300,
+                          width: 2,
+                        ),
                       ),
                     ),
                   ],
@@ -273,7 +355,13 @@ class _MemeEditorScreenState extends State<MemeEditorScreen> with TickerProvider
                   borderRadius: BorderRadius.circular(12),
                 ),
               ),
-              child: const Text("Save", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+              child: const Text(
+                "Save",
+                style: TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
             ),
           ),
         ],
@@ -287,7 +375,10 @@ class _MemeEditorScreenState extends State<MemeEditorScreen> with TickerProvider
       context: context,
       builder: (c) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: const Text("Pick Color", style: TextStyle(fontWeight: FontWeight.bold)),
+        title: const Text(
+          "Pick Color",
+          style: TextStyle(fontWeight: FontWeight.bold),
+        ),
         content: BlockPicker(
           pickerColor: pick,
           onColorChanged: (color) => pick = color,
@@ -316,7 +407,13 @@ class _MemeEditorScreenState extends State<MemeEditorScreen> with TickerProvider
                   borderRadius: BorderRadius.circular(12),
                 ),
               ),
-              child: const Text("Set", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+              child: const Text(
+                "Set",
+                style: TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
             ),
           ),
         ],
@@ -403,7 +500,9 @@ class _MemeEditorScreenState extends State<MemeEditorScreen> with TickerProvider
                 ),
                 backgroundColor: Colors.green.shade600,
                 behavior: SnackBarBehavior.floating,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
                 margin: const EdgeInsets.all(16),
               ),
             );
@@ -435,13 +534,17 @@ class _MemeEditorScreenState extends State<MemeEditorScreen> with TickerProvider
                 Icon(Icons.cloud_off, color: Colors.white),
                 SizedBox(width: 12),
                 Expanded(
-                  child: Text("Saved offline as draft — will upload when online"),
+                  child: Text(
+                    "Saved offline as draft — will upload when online",
+                  ),
                 ),
               ],
             ),
             backgroundColor: Colors.orange.shade600,
             behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
             margin: const EdgeInsets.all(16),
           ),
         );
@@ -461,7 +564,9 @@ class _MemeEditorScreenState extends State<MemeEditorScreen> with TickerProvider
           ),
           backgroundColor: Colors.red.shade600,
           behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
           margin: const EdgeInsets.all(16),
         ),
       );
@@ -698,138 +803,157 @@ class _MemeEditorScreenState extends State<MemeEditorScreen> with TickerProvider
           ),
 
           SlideTransition(
-              position: Tween<Offset>(
-                begin: const Offset(0, 1),
-                end: Offset.zero,
-              ).animate(CurvedAnimation(
-                parent: _toolbarController,
-                curve: Curves.easeOut,
-              )),
-              child: Container(
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withOpacity(0.1),
-                      blurRadius: 20,
-                      offset: const Offset(0, -5),
-                    ),
-                  ],
+            position: Tween<Offset>(begin: const Offset(0, 1), end: Offset.zero)
+                .animate(
+                  CurvedAnimation(
+                    parent: _toolbarController,
+                    curve: Curves.easeOut,
+                  ),
                 ),
-                child: Column(
-                  children: [
-                    if (_baseImage != null)
-                      Padding(
-                        padding: const EdgeInsets.symmetric(
-                            vertical: 12.0, horizontal: 8),
-                        child: Wrap(
-                          spacing: 8,
-                          runSpacing: 8,
-                          alignment: WrapAlignment.center,
-                          children: [
-                            _buildToolButton(
-                              icon: Icons.text_fields,
-                              label: "Text",
-                              gradient: const LinearGradient(
-                                colors: [Color(0xFF6366F1), Color(0xFF8B5CF6)],
-                              ),
-                              onPressed: _isUploading ? null : _addNewText,
-                            ),
-                            _buildToolButton(
-                              icon: Icons.color_lens,
-                              label: "Color",
-                              gradient: const LinearGradient(
-                                colors: [Color(0xFFEC4899), Color(0xFFF472B6)],
-                              ),
-                              onPressed: () {
-                                if (texts.isEmpty) {
-                                  _addNewText();
-                                }
-                                if (texts.isNotEmpty) {
-                                  final idx = texts.length - 1;
-                                  _pickTextColor(idx);
-                                }
-                              },
-                            ),
-                            _buildToolButton(
-                              icon: _isDrawing ? Icons.brush_outlined : Icons.brush,
-                              label: _isDrawing ? "Stop" : "Draw",
-                              gradient: LinearGradient(
-                                colors: [
-                                  _isDrawing
-                                      ? Colors.red.shade400
-                                      : const Color(0xFFF59E0B),
-                                  _isDrawing
-                                      ? Colors.red.shade600
-                                      : const Color(0xFFFBBF24),
-                                ],
-                              ),
-                              onPressed: _isUploading
-                                  ? null
-                                  : () => setState(() => _isDrawing = !_isDrawing),
-                            ),
-                            _buildToolButton(
-                              icon: Icons.emoji_emotions,
-                              label: "Emoji",
-                              gradient: const LinearGradient(
-                                colors: [Color(0xFF10B981), Color(0xFF34D399)],
-                              ),
-                              onPressed: () {
-                                _isUploading
-                                    ? null
-                                    : showModalBottomSheet(
-                                        context: context,
-                                        builder: (_) => EmojiPicker(
-                                          onEmojiSelected: (cat, emoji) {
-                                            Navigator.pop(context);
-                                            _addEmoji(emoji.emoji);
-                                          },
-                                        ),
-                                      );
-                              },
-                            ),
-                            _buildToolButton(
-                              icon: Icons.cloud_upload,
-                              label: "Upload",
-                              gradient: const LinearGradient(
-                                colors: [Color(0xFF3B82F6), Color(0xFF60A5FA)],
-                              ),
-                              onPressed: _isUploading ? null : _uploadMeme,
-                            ),
-                          ],
-                        ),
-                      ),
+            child: Container(
+              decoration: BoxDecoration(
+                color: Colors.white,
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.1),
+                    blurRadius: 20,
+                    offset: const Offset(0, -5),
+                  ),
+                ],
+              ),
+              child: Column(
+                children: [
+                  if (_baseImage != null)
                     Padding(
-                      padding: const EdgeInsets.only(
-                          left: 8, right: 8, bottom: 20, top: 8),
-                      child: Row(
+                      padding: const EdgeInsets.symmetric(
+                        vertical: 12.0,
+                        horizontal: 8,
+                      ),
+                      child: Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        alignment: WrapAlignment.center,
                         children: [
-                          Expanded(
-                            child: _buildImageSourceButton(
-                              icon: Icons.camera_alt,
-                              label: "Camera",
-                              onPressed: () => _isUploading
-                                  ? null
-                                  : _pickImage(ImageSource.camera),
+                          _buildToolButton(
+                            icon: Icons.crop_rotate,
+                            label: "Crop",
+                            gradient: const LinearGradient(
+                              colors: [Color(0xFF22C55E), Color(0xFF16A34A)],
                             ),
+                            onPressed: _isUploading || _baseImage == null
+                                ? null
+                                : _triggerCrop,
                           ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: _buildImageSourceButton(
-                              icon: Icons.photo_library,
-                              label: "Gallery",
-                              onPressed: () => _isUploading
-                                  ? null
-                                  : _pickImage(ImageSource.gallery),
+                          _buildToolButton(
+                            icon: Icons.text_fields,
+                            label: "Text",
+                            gradient: const LinearGradient(
+                              colors: [Color(0xFF6366F1), Color(0xFF8B5CF6)],
                             ),
+                            onPressed: _isUploading ? null : _addNewText,
+                          ),
+                          _buildToolButton(
+                            icon: Icons.color_lens,
+                            label: "Color",
+                            gradient: const LinearGradient(
+                              colors: [Color(0xFFEC4899), Color(0xFFF472B6)],
+                            ),
+                            onPressed: () {
+                              if (texts.isEmpty) {
+                                _addNewText();
+                              }
+                              if (texts.isNotEmpty) {
+                                final idx = texts.length - 1;
+                                _pickTextColor(idx);
+                              }
+                            },
+                          ),
+                          _buildToolButton(
+                            icon: _isDrawing
+                                ? Icons.brush_outlined
+                                : Icons.brush,
+                            label: _isDrawing ? "Stop" : "Draw",
+                            gradient: LinearGradient(
+                              colors: [
+                                _isDrawing
+                                    ? Colors.red.shade400
+                                    : const Color(0xFFF59E0B),
+                                _isDrawing
+                                    ? Colors.red.shade600
+                                    : const Color(0xFFFBBF24),
+                              ],
+                            ),
+                            onPressed: _isUploading
+                                ? null
+                                : () =>
+                                      setState(() => _isDrawing = !_isDrawing),
+                          ),
+                          _buildToolButton(
+                            icon: Icons.emoji_emotions,
+                            label: "Emoji",
+                            gradient: const LinearGradient(
+                              colors: [Color(0xFF10B981), Color(0xFF34D399)],
+                            ),
+                            onPressed: () {
+                              _isUploading
+                                  ? null
+                                  : showModalBottomSheet(
+                                      context: context,
+                                      builder: (_) => EmojiPicker(
+                                        onEmojiSelected: (cat, emoji) {
+                                          Navigator.pop(context);
+                                          _addEmoji(emoji.emoji);
+                                        },
+                                      ),
+                                    );
+                            },
+                          ),
+                          _buildToolButton(
+                            icon: Icons.cloud_upload,
+                            label: "Upload",
+                            gradient: const LinearGradient(
+                              colors: [Color(0xFF3B82F6), Color(0xFF60A5FA)],
+                            ),
+                            onPressed: _isUploading ? null : _uploadMeme,
                           ),
                         ],
                       ),
                     ),
-                  ],
-                ),
+                  Padding(
+                    padding: const EdgeInsets.only(
+                      left: 8,
+                      right: 8,
+                      bottom: 20,
+                      top: 8,
+                    ),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: _buildImageSourceButton(
+                            icon: Icons.camera_alt,
+                            label: "Camera",
+                            onPressed: () => _isUploading
+                                ? null
+                                : _pickImage(ImageSource.camera),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: _buildImageSourceButton(
+                            icon: Icons.photo_library,
+                            label: "Gallery",
+                            onPressed: () => _isUploading
+                                ? null
+                                : _pickImage(ImageSource.gallery),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
               ),
             ),
+          ),
         ],
       ),
     );
