@@ -146,6 +146,15 @@ class _MemeEditorScreenState extends State<MemeEditorScreen>
   }
 
   void _addNewText() {
+    final RenderBox? editorBox =
+        _editorKey.currentContext?.findRenderObject() as RenderBox?;
+
+    Offset center = const Offset(150, 150); 
+
+    if (editorBox != null && editorBox.hasSize) {
+      center = Offset(editorBox.size.width / 2, editorBox.size.height / 2);
+    }
+
     setState(() {
       texts.add(
         _TextInfo(
@@ -153,7 +162,7 @@ class _MemeEditorScreenState extends State<MemeEditorScreen>
           color: Colors.white,
           fontSize: 28,
           fontFamily: 'Roboto',
-          offset: const Offset(80, 80),
+          offset: center, 
           scale: 1.0,
           rotation: 0.0,
         ),

@@ -9,6 +9,8 @@ import '../Login/LoginScreen.dart';
 import 'package:dio/dio.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:hive_flutter/hive_flutter.dart';
+import 'dart:io';
+import 'package:image_gallery_saver/image_gallery_saver.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -58,20 +60,104 @@ class _HomeScreenState extends State<HomeScreen>
     });
   }
 
+  // Future<void> _saveImage(String url) async {
+  //   try {
+  //     final tempDir = await getTemporaryDirectory();
+  //     final tempPath =
+  //         '${tempDir.path}/meme_${DateTime.now().millisecondsSinceEpoch}.jpg';
+  //     final response = await Dio().download(url, tempPath);
+  //     if (response.statusCode == 200) {
+  //       final mediaStore = MediaStore();
+  //       await mediaStore.saveFile(
+  //         relativePath: '',
+  //         dirName: DirName.download,
+  //         tempFilePath: tempPath,
+  //         dirType: DirType.download,
+  //       );
+  //       ScaffoldMessenger.of(context).showSnackBar(
+  //         SnackBar(
+  //           content: const Row(
+  //             children: [
+  //               Icon(Icons.check_circle, color: Colors.white),
+  //               SizedBox(width: 12),
+  //               Text('Saved to gallery'),
+  //             ],
+  //           ),
+  //           backgroundColor: Colors.green.shade600,
+  //           behavior: SnackBarBehavior.floating,
+  //           shape: RoundedRectangleBorder(
+  //             borderRadius: BorderRadius.circular(12),
+  //           ),
+  //           margin: const EdgeInsets.all(16),
+  //         ),
+  //       );
+  //     } else {
+  //       ScaffoldMessenger.of(context).showSnackBar(
+  //         SnackBar(
+  //           content: const Row(
+  //             children: [
+  //               Icon(Icons.error_outline, color: Colors.white),
+  //               SizedBox(width: 12),
+  //               Text('Download failed'),
+  //             ],
+  //           ),
+  //           backgroundColor: Colors.red.shade600,
+  //           behavior: SnackBarBehavior.floating,
+  //           shape: RoundedRectangleBorder(
+  //             borderRadius: BorderRadius.circular(12),
+  //           ),
+  //           margin: const EdgeInsets.all(16),
+  //         ),
+  //       );
+  //     }
+  //   } catch (e) {
+  //     ScaffoldMessenger.of(context).showSnackBar(
+  //       SnackBar(
+  //         content: Row(
+  //           children: [
+  //             const Icon(Icons.error_outline, color: Colors.white),
+  //             const SizedBox(width: 12),
+  //             Expanded(child: Text('Error: $e')),
+  //           ],
+  //         ),
+  //         backgroundColor: Colors.red.shade600,
+  //         behavior: SnackBarBehavior.floating,
+  //         shape: RoundedRectangleBorder(
+  //           borderRadius: BorderRadius.circular(12),
+  //         ),
+  //         margin: const EdgeInsets.all(16),
+  //       ),
+  //     );
+  //   }
+  // }
+
   Future<void> _saveImage(String url) async {
     try {
       final tempDir = await getTemporaryDirectory();
       final tempPath =
           '${tempDir.path}/meme_${DateTime.now().millisecondsSinceEpoch}.jpg';
+
+      // 1. Download the file (same as before)
       final response = await Dio().download(url, tempPath);
+
       if (response.statusCode == 200) {
-        final mediaStore = MediaStore();
-        await mediaStore.saveFile(
-          relativePath: '',
-          dirName: DirName.download,
-          tempFilePath: tempPath,
-          dirType: DirType.download,
-        );
+        // 2. NATIVELY SAVE TO GALLERY
+        if (Platform.isAndroid) {
+          // Use the Android-only MediaStore
+          final mediaStore = MediaStore();
+          await mediaStore.saveFile(
+            relativePath: '',
+            dirName: DirName.download,
+            tempFilePath: tempPath,
+            dirType: DirType.download,
+          );
+        } else if (Platform.isIOS) {
+          // Use the iOS-compatible gallery_saver
+          // This saves the file from its path to the iOS Photos (Camera Roll)
+          await ImageGallerySaver.saveFile(tempPath);
+        }
+
+        // 3. Show a single success message
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: const Row(
@@ -90,25 +176,10 @@ class _HomeScreenState extends State<HomeScreen>
           ),
         );
       } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: const Row(
-              children: [
-                Icon(Icons.error_outline, color: Colors.white),
-                SizedBox(width: 12),
-                Text('Download failed'),
-              ],
-            ),
-            backgroundColor: Colors.red.shade600,
-            behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
-            ),
-            margin: const EdgeInsets.all(16),
-          ),
-        );
+        throw Exception("Download failed"); // Go to catch block
       }
     } catch (e) {
+      // Show the error (same as before)
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Row(

@@ -6,7 +6,7 @@ import 'package:media_store_plus/media_store_plus.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'firebase_options.dart';
-
+import 'dart:io';
 import 'Components/Login/LoginScreen.dart';
 import 'Components/Home/HomeScreen.dart';
 import 'Utils/SyncService.dart';
@@ -18,8 +18,10 @@ void main() async {
   await Hive.openBox('outbox'); 
   await Hive.openBox('user');  
 
-  await MediaStore.ensureInitialized();
-  MediaStore.appFolder = "MemeCreator";
+  if (Platform.isAndroid) {
+    await MediaStore.ensureInitialized();
+    MediaStore.appFolder = "MemeCreator";
+  }
 
   final connectivity = await Connectivity().checkConnectivity();
   final bool hasConnection = connectivity != ConnectivityResult.none;
